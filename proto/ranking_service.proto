@@ -1,0 +1,132 @@
+syntax = "proto3";
+
+package decision_core;
+
+// Service definition for real-time high-throughput ranking and decision making
+service RankingService {
+  // Execute multi-stage ranking pipeline
+  rpc Rank (RankRequest) returns (RankResponse);
+  
+  // Asynchronous feedback stream for Bandit & Model reinforcement learning
+  rpc IngestFeedback (FeedbackEvent) returns (FeedbackResponse);
+  
+  // Real-time bandit policy synchronization
+  rpc SyncPolicy (PolicySyncRequest) returns (PolicySyncResponse);
+  
+  // Health & latency diagnostic check
+  rpc HealthCheck (HealthRequest) returns (HealthResponse);
+}
+
+message UserContext {
+  string user_id = 1;
+  string session_id = 2;
+  string device = 3;
+  string geo_location = 4;
+  int64 timestamp_epoch_ms = 5;
+  map<string, double> dynamic_features = 6;
+  repeated string past_interacted_categories = 7;
+}
+
+message CandidateItem {
+  string item_id = 1;
+  string category = 2;
+  double base_score = 3;
+  double price = 4;
+  map<string, double> item_features = 5;
+  repeated string tags = 6;
+}
+
+enum ExplorationPolicy {
+  POLICY_GREEDY = 0;
+  POLICY_EPSILON_GREEDY = 1;
+  POLICY_LINUCB = 2;
+  POLICY_THOMPSON_SAMPLING = 3;
+  POLICY_BOLTZMANN = 4;
+}
+
+message RankingConfig {
+  int32 top_k = 1;
+  ExplorationPolicy exploration_policy = 2;
+  double exploration_factor_alpha = 3;
+  double diversity_penalty_lambda = 4;
+  bool enable_cache = 5;
+  string ranker_model_type = 6; // "xgboost" | "lightgbm" | "ensemble"
+}
+
+message RankRequest {
+  string request_id = 1;
+  UserContext user_context = 2;
+  repeated CandidateItem candidates = 3; // If empty, candidate retrieval stage auto-queries feature store
+  RankingConfig config = 4;
+}
+
+message RankedItem {
+  string item_id = 1;
+  string category = 2;
+  double final_score = 3;
+  double ml_rank_score = 4;
+  double bandit_exploration_bonus = 5;
+  double diversity_penalty = 6;
+  int32 rank_position = 7;
+  bool was_explored = 8;
+  map<string, double> debug_scores = 9;
+}
+
+message StageLatencyMetrics {
+  double candidate_retrieval_ms = 1;
+  double feature_enrichment_ms = 2;
+  double heavy_ranking_ms = 3;
+  double contextual_bandit_ms = 4;
+  double reranking_diversity_ms = 5;
+  double total_pipeline_ms = 6;
+}
+
+message RankResponse {
+  string request_id = 1;
+  string user_id = 2;
+  repeated RankedItem ranked_items = 3;
+  StageLatencyMetrics latency_breakdown = 4;
+  string decision_policy_used = 5;
+  string model_version = 6;
+  int64 generated_at_ms = 7;
+}
+
+message FeedbackEvent {
+  string feedback_id = 1;
+  string request_id = 2;
+  string user_id = 3;
+  string item_id = 4;
+  string event_type = 5; // "impression", "click", "conversion", "dwell_time"
+  double reward_value = 6; // e.g. 0.0 (no click), 1.0 (click), 5.0 (purchase)
+  int64 event_timestamp_ms = 7;
+  map<string, string> metadata = 8;
+}
+
+message FeedbackResponse {
+  bool success = 1;
+  string message = 2;
+  double updated_arm_cumulative_reward = 3;
+}
+
+message PolicySyncRequest {
+  string policy_name = 1;
+  int64 last_sync_timestamp = 2;
+}
+
+message PolicySyncResponse {
+  string policy_name = 1;
+  int32 arms_count = 2;
+  int64 total_updates = 3;
+  map<string, double> average_arm_rewards = 4;
+}
+
+message HealthRequest {
+  string client_id = 1;
+}
+
+message HealthResponse {
+  string status = 2; // "SERVING", "DEGRADED", "INITIALIZING"
+  double uptime_seconds = 3;
+  int64 total_decisions_served = 4;
+  double avg_p99_latency_ms = 5;
+}

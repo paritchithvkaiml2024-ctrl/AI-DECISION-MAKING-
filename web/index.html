@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Automated Decision-Making Core // AI Ranking & Bandit Engine</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <!-- Chart.js CDN for live Monte Carlo Regret & Reward curves -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="dark-theme">
+    <div class="app-container">
+        <!-- Top Navigation Bar -->
+        <header class="top-nav">
+            <div class="nav-left">
+                <div class="logo-badge">
+                    <span class="logo-icon">⚡</span>
+                    <div class="logo-text">
+                        <span class="brand-title">DECISION-CORE</span>
+                        <span class="brand-subtitle">AI Multi-Stage Ranking & Contextual Bandits</span>
+                    </div>
+                </div>
+                <div class="status-indicator-pill">
+                    <span class="pulse-dot"></span>
+                    <span id="clusterStatusText">RAY CLUSTER ONLINE</span>
+                </div>
+            </div>
+            
+            <div class="nav-right">
+                <div class="stat-chip">
+                    <span class="chip-label">ScyllaDB Feature Store</span>
+                    <span class="chip-val status-green">ACTIVE</span>
+                </div>
+                <div class="stat-chip">
+                    <span class="chip-label">Redis L1 Cache</span>
+                    <span class="chip-val status-green" id="cacheHitRateBadge">100% HIT</span>
+                </div>
+                <div class="stat-chip">
+                    <span class="chip-label">Prometheus /metrics</span>
+                    <a href="/metrics" target="_blank" class="chip-link">EXPORT</a>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Workspace Grid -->
+        <main class="main-layout">
+            <!-- Left Panel: Context & Policy Controls -->
+            <section class="control-panel glass-card">
+                <div class="card-header">
+                    <h3>🎯 Decision Context & Policy</h3>
+                    <span class="badge-tag">Stage Controls</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="personaSelect">User Persona (Context Vector)</label>
+                    <select id="personaSelect" class="custom-select">
+                        <option value="usr_tech_enthusiast">Tech & Gaming Enthusiast (High Spend)</option>
+                        <option value="usr_fashion_shopper">Fashion & Apparel Connoisseur</option>
+                        <option value="usr_budget_saver">Budget Conscious Saver</option>
+                        <option value="usr_vip_power">VIP Power Consumer (Elite Tier)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="banditPolicySelect">Exploration-Exploitation Policy</label>
+                    <select id="banditPolicySelect" class="custom-select">
+                        <option value="linucb">LinUCB (Disjoint Ridge UCB) [Recommended]</option>
+                        <option value="thompson_sampling">Thompson Sampling (Bayesian Posterior)</option>
+                        <option value="epsilon_greedy">Dynamic ε-Greedy (20% Exploration)</option>
+                        <option value="greedy">Greedy Exploitation (No Exploration)</option>
+                    </select>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group half">
+                        <label for="alphaSlider">Bandit Alpha (<span id="alphaVal">0.75</span>)</label>
+                        <input type="range" id="alphaSlider" min="0.0" max="2.0" step="0.05" value="0.75" class="slider">
+                    </div>
+                    <div class="form-group half">
+                        <label for="lambdaSlider">Diversity Lambda (<span id="lambdaVal">0.20</span>)</label>
+                        <input type="range" id="lambdaSlider" min="0.0" max="0.8" step="0.05" value="0.20" class="slider">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="modelSelect">Heavy ML Ranker</label>
+                    <select id="modelSelect" class="custom-select">
+                        <option value="ensemble">XGBoost + LightGBM Ensemble</option>
+                        <option value="xgboost">XGBoost Ranker (GBDT)</option>
+                        <option value="lightgbm">LightGBM Ranker (High Speed)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="topKInput">Recommendations Top-K</label>
+                    <input type="number" id="topKInput" min="3" max="12" value="6" class="custom-input">
+                </div>
+
+                <button id="runDecisionBtn" class="primary-action-btn">
+                    <span class="btn-icon">⚡</span>
+                    <span>EXECUTE MULTI-STAGE RANKING</span>
+                </button>
+            </section>
+
+            <!-- Center Panel: Multi-Stage Waterfall & Ranked Results -->
+            <section class="results-panel glass-card">
+                <div class="card-header">
+                    <div>
+                        <h3>⚡ Live Decision Inference Pipeline</h3>
+                        <p class="section-subtitle">Real-time Stage Waterfall & Calibrated Scores</p>
+                    </div>
+                    <div class="latency-pill" id="totalLatencyBadge">
+                        TOTAL: <span id="totalLatencyVal">0.00</span> ms
+                    </div>
+                </div>
+
+                <!-- Stage Latency Waterfall Progress Bar -->
+                <div class="waterfall-container">
+                    <div class="waterfall-title">Microsecond Latency Breakdown</div>
+                    <div class="waterfall-bars">
+                        <div class="stage-bar stage-retrieval" id="barRetrieval" title="Candidate Retrieval">
+                            <span>Retrieval: <b id="timeRetrieval">--</b>ms</span>
+                        </div>
+                        <div class="stage-bar stage-enrich" id="barEnrich" title="Feature Enrichment">
+                            <span>Enrich: <b id="timeEnrich">--</b>ms</span>
+                        </div>
+                        <div class="stage-bar stage-rank" id="barRank" title="GBDT Heavy Ranker">
+                            <span>GBDT: <b id="timeRank">--</b>ms</span>
+                        </div>
+                        <div class="stage-bar stage-bandit" id="barBandit" title="Contextual Bandit">
+                            <span>Bandit: <b id="timeBandit">--</b>ms</span>
+                        </div>
+                        <div class="stage-bar stage-rerank" id="barRerank" title="MMR Diversity">
+                            <span>MMR: <b id="timeRerank">--</b>ms</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Ranked Items Display -->
+                <div class="table-container">
+                    <table class="ranking-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Item Title & Category</th>
+                                <th>ML Score</th>
+                                <th>Bandit Bonus</th>
+                                <th>Final MMR</th>
+                                <th>Action Feedback</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rankingTableBody">
+                            <tr>
+                                <td colspan="6" class="placeholder-row">Click "EXECUTE MULTI-STAGE RANKING" to run live pipeline.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Right Panel: Bandit Telemetry & A/B Simulation -->
+            <section class="analytics-panel glass-card">
+                <div class="card-header">
+                    <h3>📊 Bandit Regret & Reward Simulator</h3>
+                    <span class="badge-tag">Monte Carlo A/B</span>
+                </div>
+
+                <div class="simulation-actions">
+                    <button id="runSimBtn" class="secondary-action-btn">
+                        <span>▶ Run 100-Step Simulation</span>
+                    </button>
+                </div>
+
+                <div class="chart-wrapper">
+                    <canvas id="banditChart"></canvas>
+                </div>
+
+                <div class="arms-stats-card">
+                    <div class="arms-title">Active Bandit Arm Weights & Feedback</div>
+                    <div id="armsContainer" class="arms-list">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

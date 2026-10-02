@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  # 1. AI Decision-Making Core Ranking Service
+  decision-core-api:
+    build: .
+    container_name: decision-core-api
+    ports:
+      - "8000:8000"
+      - "50051:50051"
+    environment:
+      - REDIS_HOST=redis-cache
+      - REDIS_PORT=6379
+      - SCYLLA_HOST=scylladb
+      - PROMETHEUS_MULTIPROC_DIR=/tmp
+    depends_on:
+      - redis-cache
+      - scylladb
+    networks:
+      - decision-net
+
+  # 2. Redis L1 In-Memory Feature Cache
+  redis-cache:
+    image: redis:7-alpine
+    container_name: decision-redis-cache
+    ports:
+      - "6379:6379"
+    networks:
+      - decision-net
+
+  # 3. ScyllaDB High-Throughput Feature Store
+  scylladb:
+    image: scylladb/scylla:5.2
+    container_name: decision-scylladb
+    ports:
+      - "9042:9042"
+    command: --smp 1 --memory 1G --overprovisioned 1
+    networks:
+      - decision-net
+
+  # 4. Prometheus Observability Metrics Collector
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: decision-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - decision-net
+
+  # 5. Grafana Monitoring Dashboard
+  grafana:
+    image: grafana/grafana:latest
+    container_name: decision-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    networks:
+      - decision-net
+
+networks:
+  decision-net:
+    driver: bridge
